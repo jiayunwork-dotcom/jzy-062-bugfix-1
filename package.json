@@ -1,0 +1,28 @@
+{
+  "name": "room-acoustics-service",
+  "version": "1.0.0",
+  "description": "Room acoustics calculation backend: Sabine/Eyring reverberation, Helmholtz resonators, octave-band analysis",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "fastify": "^5.2.0",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
+  }
+}

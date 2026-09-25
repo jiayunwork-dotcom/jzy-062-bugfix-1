@@ -1,0 +1,51 @@
+name: room-acoustics
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: acoustics
+      POSTGRES_PASSWORD: acoustics
+      POSTGRES_DB: acoustics
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U acoustics -d acoustics"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  app:
+    build:
+      context: .
+      target: runtime
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgres://acoustics:acoustics@db:5432/acoustics
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  # One-shot test runner: docker compose --profile test run --rm tests
+  tests:
+    build:
+      context: .
+      target: test
+    profiles: ["test"]
+    environment:
+      TEST_DATABASE_URL: postgres://acoustics:acoustics@db:5432/acoustics
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
