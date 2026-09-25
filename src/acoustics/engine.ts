@@ -22,7 +22,11 @@ import { eyring, sabine } from './reverberation.js';
  *   A_surface = Σ Si·αi  (+ resonator Lorentzian contributions)
  *   A_air     = 4·m·V
  *   Sabine:   A = A_surface + A_air,        T60,S = 0.161·V / A
- *   Eyring:   ᾱ = A_surface / S,            T60,E = 0.161·V / (−S·ln(1−ᾱ))
+ *   Eyring:   ᾱ = A_surface / S,
+ *             A_E = −S·ln(1−ᾱ) + A_air,    T60,E = 0.161·V / A_E
+ *
+ * Both models consume the very same A_air term (and the same constants):
+ * air attenuation is added linearly in each, never folded into ᾱ.
  *
  * Resonator absorption is folded into A_surface before both models run, so
  * the with-resonator curves are genuinely recomputed — never patched onto
@@ -63,7 +67,7 @@ export function runCalculation(input: NormalizedRequest): CalculationResult {
       },
       meanAlpha,
       sabine: sabine(volume, totalAbsorption),
-      eyring: eyring(volume, totalSurfaceArea, meanAlpha),
+      eyring: eyring(volume, totalSurfaceArea, meanAlpha, airAbsorption),
     };
   });
 

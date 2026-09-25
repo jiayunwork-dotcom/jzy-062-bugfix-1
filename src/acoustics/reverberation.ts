@@ -57,10 +57,16 @@ export function sabine(volume: number, totalAbsorption: number): DerivedQuantiti
  * Eyring model.
  *
  *   ᾱ        = A_surface / S                    (mean absorption coefficient)
- *   T60,E    = SABINE_CONSTANT · V / (−S·ln(1 − ᾱ))
+ *   A_E      = −S·ln(1 − ᾱ) + A_air             (surface + air absorption, m²)
+ *   T60,E    = SABINE_CONSTANT · V / A_E
  *
- * The minus sign in the denominator is essential: ln(1 − ᾱ) < 0, so the
- * denominator is positive and −S·ln(1−ᾱ) ≥ S·ᾱ. Writing +S·ln(1−ᾱ) instead
+ * The air term 4·m·V is added in full, exactly as in the Sabine model: air
+ * attenuation is a linear path-length loss in both formulations and must not
+ * be folded into ᾱ (which describes surface reflections only). Omitting it
+ * makes the Eyring T60 ignore air damping at high frequencies.
+ *
+ * The minus sign in the surface term is essential: ln(1 − ᾱ) < 0, so the
+ * term is positive and −S·ln(1−ᾱ) ≥ S·ᾱ. Writing +S·ln(1−ᾱ) instead
  * would make T60 negative and make the two models diverge in opposite
  * directions for absorbent rooms — the classic bug this module is built
  * to prevent.
@@ -68,14 +74,17 @@ export function sabine(volume: number, totalAbsorption: number): DerivedQuantiti
  * @param volume            room volume V (m³), must be > 0
  * @param totalSurfaceArea  S = Σ Si (m²), must be > 0
  * @param meanAlpha         ᾱ including resonator absorption (dimensionless)
+ * @param airAbsorption     A_air = 4·m·V for this band (m²), must be ≥ 0
  */
 export function eyring(
   volume: number,
   totalSurfaceArea: number,
   meanAlpha: number,
+  airAbsorption: number,
 ): DerivedQuantities {
   const alphaBar = Math.min(Math.max(meanAlpha, 0), ALPHA_BAR_MAX);
-  const equivalentAbsorption = -totalSurfaceArea * Math.log(1 - alphaBar);
+  const equivalentAbsorption =
+    -totalSurfaceArea * Math.log(1 - alphaBar) + airAbsorption;
   if (equivalentAbsorption <= 0) return NO_ABSORPTION;
   const t60 = (SABINE_CONSTANT * volume) / equivalentAbsorption;
   return derive(t60, equivalentAbsorption, volume);

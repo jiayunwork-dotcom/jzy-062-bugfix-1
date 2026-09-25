@@ -165,3 +165,76 @@ describe('Sabine–Eyring agreement limits', () => {
     expect(b.sabine.t60!).toBeGreaterThan(0);
   });
 });
+
+describe('Eyring air attenuation (regression: high-frequency freeze in low-absorption rooms)', () => {
+  // The reported case: V = 200 m³, S = 200 m², one uniform material with a
+  // very low α = 0.03 in every band. Surface absorption is then only 6 m²,
+  // so the 4·m·V air term dominates the high bands. Before the fix Eyring
+  // omitted that term, so its T60 stayed frozen at the 500 Hz value while
+  // Sabine kept falling — and Eyring ended up nearly twice *longer* at 4 kHz.
+  function sparseRoom() {
+    return {
+      room: {
+        volume: 200,
+        surfaces: [
+          {
+            name: 'uniform-light',
+            area: 200,
+            absorption: { '125': 0.03, '250': 0.03, '500': 0.03, '1000': 0.03, '2000': 0.03, '4000': 0.03 },
+          },
+        ],
+      },
+    };
+  }
+
+  const result = calculate(sparseRoom());
+
+  it('keeps the low bands (no air term) unchanged: models close, ~5.3 s', () => {
+    for (const f of [125, 250, 500] as const) {
+      const b = band(result, f);
+      expect(b.sabine.t60!).toBeCloseTo(5.37, 1);
+      expect(b.eyring.t60!).toBeCloseTo(5.29, 1);
+      expect(b.eyring.t60!).toBeLessThan(b.sabine.t60!);
+      expect((b.sabine.t60! - b.eyring.t60!) / b.sabine.t60!).toBeLessThan(0.02);
+    }
+  });
+
+  it('Eyring follows Sabine down through the air-damped high bands', () => {
+    const highBands = [1000, 2000, 4000] as const;
+    const pairs = highBands.map((f) => ({
+      f,
+      sabine: band(result, f).sabine.t60!,
+      eyring: band(result, f).eyring.t60!,
+    }));
+
+    for (const { f, sabine, eyring } of pairs) {
+      // never longer than Sabine — the reported inversion
+      expect(eyring, `Eyring exceeds Sabine @ ${f} Hz`).toBeLessThan(sabine);
+      // low surface absorption ⇒ models stay close even with air damping
+      expect((sabine - eyring) / sabine, `gap @ ${f} Hz`).toBeLessThan(0.02);
+    }
+
+    // Eyring must fall from band to band instead of freezing at the 500 Hz value
+    expect(pairs[0]!.eyring).toBeLessThan(band(result, 500).eyring.t60!);
+    expect(pairs[1]!.eyring).toBeLessThan(pairs[0]!.eyring);
+    expect(pairs[2]!.eyring).toBeLessThan(pairs[1]!.eyring);
+
+    // pinned to the physically expected values for this room
+    expect(pairs[0]!.sabine).toBeCloseTo(4.24, 2);
+    expect(pairs[1]!.sabine).toBeCloseTo(3.5, 2);
+    expect(pairs[2]!.sabine).toBeCloseTo(2.44, 2);
+    expect(pairs[0]!.eyring).toBeCloseTo(4.19, 2);
+    expect(pairs[1]!.eyring).toBeCloseTo(3.47, 2);
+    expect(pairs[2]!.eyring).toBeCloseTo(2.42, 2);
+  });
+
+  it('counts air absorption in the Eyring effective absorption (dc ∝ √(V/T60))', () => {
+    for (const f of [1000, 2000, 4000] as const) {
+      const b = band(result, f);
+      expect(b.eyring.criticalDistance!).toBeCloseTo(
+        0.057 * Math.sqrt(200 / b.eyring.t60!),
+        1,
+      );
+    }
+  });
+});
