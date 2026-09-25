@@ -157,6 +157,29 @@ describe('Sabine–Eyring agreement limits', () => {
     expect(Math.abs(b.sabine.t60! - b.eyring.t60!) / b.sabine.t60!).toBeLessThan(0.03);
   });
 
+  it('low absorption with high-frequency air loss: Eyring includes 4·m·V and follows Sabine downward', () => {
+    const volume = 200;
+    const totalSurfaceArea = 200;
+    const alpha = 0.03;
+    const result = calculate(uniformRoom(alpha));
+    const highBands = [1000, 2000, 4000] as const;
+
+    for (const f of highBands) {
+      const b = band(result, f);
+      const expectedEyring =
+        (SABINE_CONSTANT * volume) /
+        (-totalSurfaceArea * Math.log(1 - alpha) + 4 * AIR_ATTENUATION[f] * volume);
+
+      expect(b.eyring.t60!).toBeCloseTo(expectedEyring, 8);
+      expect(b.eyring.t60!).toBeLessThan(b.sabine.t60!);
+      expect((b.sabine.t60! - b.eyring.t60!) / b.sabine.t60!).toBeLessThan(0.02);
+    }
+
+    expect(band(result, 1000).eyring.t60!).toBeLessThan(band(result, 500).eyring.t60!);
+    expect(band(result, 2000).eyring.t60!).toBeLessThan(band(result, 1000).eyring.t60!);
+    expect(band(result, 4000).eyring.t60!).toBeLessThan(band(result, 2000).eyring.t60!);
+  });
+
   it('high absorption: models diverge with Eyring shorter, both positive', () => {
     const result = calculate(uniformRoom(0.9));
     const b = band(result, 500);

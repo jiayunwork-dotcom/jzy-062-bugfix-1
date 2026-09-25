@@ -56,26 +56,33 @@ export function sabine(volume: number, totalAbsorption: number): DerivedQuantiti
 /**
  * Eyring model.
  *
- *   ᾱ        = A_surface / S                    (mean absorption coefficient)
- *   T60,E    = SABINE_CONSTANT · V / (−S·ln(1 − ᾱ))
+ *   ᾱ        = A_surface / S                    (mean surface absorption)
+ *   A_air    = 4·m·V                            (air absorption, m² sabin)
+ *   T60,E    = SABINE_CONSTANT · V / (−S·ln(1 − ᾱ) + A_air)
+ *
+ * Air attenuation is a propagation loss and is therefore added as the same
+ * linear 4·m·V term used by Sabine; it must not be folded into ᾱ, because it
+ * is not a surface reflection probability.
  *
  * The minus sign in the denominator is essential: ln(1 − ᾱ) < 0, so the
- * denominator is positive and −S·ln(1−ᾱ) ≥ S·ᾱ. Writing +S·ln(1−ᾱ) instead
- * would make T60 negative and make the two models diverge in opposite
+ * surface contribution is positive and −S·ln(1−ᾱ) ≥ S·ᾱ. Writing +S·ln(1−ᾱ)
+ * instead would make T60 negative and make the two models diverge in opposite
  * directions for absorbent rooms — the classic bug this module is built
  * to prevent.
  *
  * @param volume            room volume V (m³), must be > 0
  * @param totalSurfaceArea  S = Σ Si (m²), must be > 0
  * @param meanAlpha         ᾱ including resonator absorption (dimensionless)
+ * @param airAbsorption     A_air = 4·m·V (m²), defaults to zero
  */
 export function eyring(
   volume: number,
   totalSurfaceArea: number,
   meanAlpha: number,
+  airAbsorption = 0,
 ): DerivedQuantities {
   const alphaBar = Math.min(Math.max(meanAlpha, 0), ALPHA_BAR_MAX);
-  const equivalentAbsorption = -totalSurfaceArea * Math.log(1 - alphaBar);
+  const equivalentAbsorption = -totalSurfaceArea * Math.log(1 - alphaBar) + airAbsorption;
   if (equivalentAbsorption <= 0) return NO_ABSORPTION;
   const t60 = (SABINE_CONSTANT * volume) / equivalentAbsorption;
   return derive(t60, equivalentAbsorption, volume);
